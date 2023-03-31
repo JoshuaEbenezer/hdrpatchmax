@@ -1,29 +1,41 @@
 import numpy as np                                                                                                                                                                                                          
 from scipy.stats import pearsonr,spearmanr
+from sklearn.model_selection import PredefinedSplit,KFold
+import glob
 import os
+from matplotlib import pyplot as plt 
 import pandas as pd
+import math
+import scipy
 from sklearn.model_selection import train_test_split, GridSearchCV
-from sklearn import svm
+from sklearn import preprocessing
 from joblib import dump, load
+from scipy.stats.mstats import gmean
 
+from sklearn import preprocessing
 import pandas as pd
 from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import StandardScaler,MinMaxScaler
 from joblib import load,Parallel,delayed
-from sklearn.svm import SVR
+from sklearn.ensemble import RandomForestRegressor
 from scipy.io import savemat
 from scipy.stats import spearmanr,pearsonr
 from scipy.optimize import curve_fit
+import glob
 import argparse
 
-parser = argparse.ArgumentParser(description='Run a content-separated SVR model')
+
+
+parser = argparse.ArgumentParser(description='Run a content-separated Random Forest model')
 parser.add_argument('--score_file',help='File with video names and scores')
 parser.add_argument('--feature_folder',help='Folder containing features')
 parser.add_argument('--only_train',action='store_true',help='only train')
 parser.add_argument('--only_test',action='store_true',help='only test')
 parser.add_argument('--train_and_test',action='store_true',help='train and test')
 
+
 args = parser.parse_args()
+
 
 def results(all_preds,all_dmos):
     all_preds = np.asarray(all_preds)
@@ -31,21 +43,29 @@ def results(all_preds,all_dmos):
     all_dmos = np.asarray(all_dmos)
 
     try:
-        [[b0, b1, b2, b3, b4], _] = curve_fit(lambda t, b0, b1, b2, b3, b4: b0 * (0.5 - 1.0/(1 + np.exp(b1*(t - b2))) + b3 * t + b4),
-                                              all_preds, all_dmos, p0=0.5*np.ones((5,)), maxfev=20000)
-        preds_fitted = b0 * (0.5 - 1.0/(1 + np.exp(b1*(all_preds - b2))) + b3 * all_preds+ b4)
+        f = lambda x, a, b, c, s : (a-b) / (1 + np.exp(-((x - c) / s))) + b
+        init_val = np.array([np.max(all_mos), np.min(all_mos), np.mean(all_preds) , np.std(all_preds)/4])
+        [[a, b, c, s], _] = curve_fit(f, all_preds, all_mos, p0=init_val, maxfev=20000)
+        preds_fitted = (a-b) / (1 + np.exp(-((all_preds - c) / s))) + b
     except:
         preds_fitted = all_preds
     preds_srocc = spearmanr(preds_fitted,all_dmos)
     preds_lcc = pearsonr(preds_fitted,all_dmos)
     preds_rmse = np.sqrt(np.mean((preds_fitted-all_dmos)**2))
+#    print('SROCC:')
+#    print(preds_srocc[0])
+#    print('LCC:')
+#    print(preds_lcc[0])
+#    print('RMSE:')
+#    print(preds_rmse)
+#    print(len(all_preds),' videos were read')
     return preds_srocc[0],preds_lcc[0],preds_rmse
 
 
-
 scores_df = pd.read_csv(args.score_file)
+scores_df.reset_index(drop=True, inplace=True)
 video_names = scores_df['video']
-scores = scores_df['mos']
+scores = list(scores_df['mos'])
 srocc_list = []
 
 def trainval_split(trainval_content,r):
@@ -56,17 +76,16 @@ def trainval_split(trainval_content,r):
     train_scores = []
     val_scores = []
 
-    feature_folder= args.feature_folder
+    feature_folder1 = args.feature_folder
 
     train_names = []
     val_names = [] 
     for i,vid in enumerate(video_names):
-        featfile_name = vid+'_upscaled.z'
-        feat_file = load(os.path.join(feature_folder,featfile_name))
+        featfile_name = vid+'.z'
+        feat_file = load(os.path.join(feature_folder1,featfile_name))
+        full_feature1 = np.asarray(feat_file['features'],dtype=np.float32)
+        feature = full_feature1
             
-        feature = np.asarray(feat_file['features'],dtype=np.float32)
-
-        feature = np.nan_to_num(feature)
         score = scores[i]
         if(scores_df.loc[i]['content'] in train):
             train_features.append(feature)
@@ -83,17 +102,16 @@ def trainval_split(trainval_content,r):
 def single_split(trainval_content,cv_index,C):
 
     train_features,train_scores,val_features,val_scores,_,_ = trainval_split(trainval_content,cv_index)
-    clf = svm.SVR(kernel='linear',C=C)
-    scaler = StandardScaler()
-    X_train = scaler.fit_transform(train_features)
-    X_test = scaler.transform(val_features)
+    clf = RandomForestRegressor()
+    X_train =train_features
+    X_test = val_features
     clf.fit(X_train,train_scores)
     return clf.score(X_test,val_scores)
 def grid_search(C_list,trainval_content):
     best_score = -100
     best_C = C_list[0]
     for C in C_list:
-        cv_score = Parallel(n_jobs=-1)(delayed(single_split)(trainval_content,cv_index,C) for cv_index in range(5))
+        cv_score = Parallel(n_jobs=5)(delayed(single_split)(trainval_content,cv_index,C) for cv_index in range(5))
         avg_cv_score = np.average(cv_score)
         if(avg_cv_score>best_score):
             best_score = avg_cv_score
@@ -103,84 +121,38 @@ def grid_search(C_list,trainval_content):
 def train_test(r):
     train_features,train_scores,test_features,test_scores,trainval_content,test_names = trainval_split(scores_df['content'].unique(),r)
     best_C= grid_search(C_list=np.logspace(-7,2,10,base=2),trainval_content=trainval_content)
-    scaler = StandardScaler()
-    scaler.fit(train_features)
-    X_train = scaler.transform(train_features)
-    X_test = scaler.transform(test_features)
-    best_svr =SVR(kernel='linear',C=best_C) 
-    best_svr.fit(X_train,train_scores)
-    preds = best_svr.predict(X_test)
+    X_train = train_features
+    X_test = test_features
+    best_randomforest =RandomForestRegressor() 
+    best_randomforest.fit(X_train,train_scores)
+    preds = best_randomforest.predict(X_test)
     srocc,lcc,rmse = results(preds,test_scores)
     return srocc,lcc,rmse
-
 def only_train(r):
-    train_features,train_scores,test_features,test_scores,trainval_content,test_names = trainval_split(scores_df['content'].unique(),r)
-    best_C= grid_search(C_list=np.logspace(-7,2,10,base=2),trainval_content=trainval_content)
-
-    all_features = np.concatenate((np.asarray(train_features),np.asarray(test_features)),axis=0)
-    all_scores = np.concatenate((train_scores,test_scores),axis=0)
-    scaler = StandardScaler()
-    X_train = scaler.fit_transform(all_features)
-    if(args.model=='decisiontree'):
-        clf = DecisionTreeRegressor()
-    elif(args.model=='svr'):
-        clf = svm.SVR(kernel='linear')
-    clf.fit(X_train, all_scores)
-    preds = clf.predict(X_train)
-    srocc_test = spearmanr(preds,all_scores)
-    print(srocc_test)
-    dump(scaler,args.scaler_path)
-    dump(clf,args.model_path)
-    return
-
-
-
-def only_train(r):
-
-    best_C= grid_search(C_list=np.logspace(-7,2,10,base=2),trainval_content=scores_df['content'].unique())
-    train_features,train_scores,test_features,test_scores,trainval_content,test_names = trainval_split(scores_df['content'].unique(),r)
+    train_features,train_scores,test_features,test_scores,trainval_content = trainval_split(scores_df['content'].unique(),r)
     all_features = np.concatenate((np.asarray(train_features),np.asarray(test_features)),axis=0) 
     all_scores = np.concatenate((train_scores,test_scores),axis=0) 
-    scaler = StandardScaler()
-    X_train = scaler.fit_transform(all_features)
-    best_svr = svm.SVR(kernel='linear',C=best_C)
-    best_svr.fit(X_train, all_scores)
-    preds = best_svr.predict(X_train)
+    X_train = all_features
+    grid_randomforest = RandomForestRegressor()
+    grid_randomforest.fit(X_train, all_scores)
+    preds = grid_randomforest.predict(X_train)
     srocc_test = spearmanr(preds,all_scores)
     print(srocc_test)
-    dump(scaler,"./fitted_scaler.z")
-    dump(best_svr,"./trained_svr.z")
-    return
-
-def only_train_grid(r):
-    train_features,train_scores,test_features,test_scores,_,_ = trainval_split(scores_df['content'].unique(),r)
-    all_features = np.concatenate((np.asarray(train_features),np.asarray(test_features)),axis=0) 
-    all_scores = np.concatenate((train_scores,test_scores),axis=0) 
-#    scaler = preprocessing.MinMaxScaler(feature_range=(-1,1))
-    scaler = StandardScaler()
-    X_train = scaler.fit_transform(all_features)
-    grid_svr = GridSearchCV(svm.SVR(kernel='linear'),param_grid = {"C":np.logspace(-7,2,10,base=2)},cv=5)
-    grid_svr.fit(X_train, all_scores)
-    preds = grid_svr.predict(X_train)
-    srocc_test = spearmanr(preds,all_scores)
-    print(srocc_test)
-    dump(scaler,"./fitted_scaler_grid.z")
-    dump(grid_svr,"./trained_svr_grid.z")
     return
 
 def only_test(r):
-    train_features,train_scores,test_features,test_scores,trainval_content,test_names = trainval_split(scores_df['content'].unique(),r)
+    train_features,train_scores,test_features,test_scores,trainval_content = trainval_split(scores_df['content'].unique(),r)
     all_features = np.concatenate((np.asarray(train_features),np.asarray(test_features)),axis=0) 
     all_scores = np.concatenate((train_scores,test_scores),axis=0) 
-    scaler = StandardScaler()
-    scaler = load('wacv_livehdr_fitted_scaler_grid.z')
-    X_train = scaler.transform(all_features)
-    grid_svr = load('wacv_livehdr_trained_svr_grid.z')
-    preds = grid_svr.predict(X_train)
+    X_train = all_features
+    grid_randomforest = load('/home/ubuntu/ChipQA_files/zfiles/rapique_on_apv_randomforest.z')
+    preds = grid_randomforest.predict(X_train)
     srocc_test = spearmanr(preds,all_scores)
-    print(srocc_test)
+    predfname = 'preds_'+str(r)+'.mat'
+    out = {'pred':preds,'y':test_scores}
+    srocc_val = np.nan_to_num(srocc_test[0])
+    print(srocc_val)
     return
-
 
 if(args.only_train):
     only_train_grid(0)
