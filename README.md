@@ -1,6 +1,6 @@
-# HDR CHIPQA: No-Reference Video Quality Assessment for HDR using Space-Time Chips
+# HDRPatchMAX: No-Reference Video Quality Assessment for HDR and SDR using contrast-based segmentation
 
-This repository contains code for HDR ChipQA and ChipQA.
+This repository contains code for HDRPatchMAX.
 
 ## Requirements
 
