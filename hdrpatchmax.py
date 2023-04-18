@@ -10,7 +10,7 @@ import save_stats
 from numba import jit,prange
 import argparse
 
-parser = argparse.ArgumentParser(description='Generate HDR ChipQA features from a single video')
+parser = argparse.ArgumentParser(description='Generate HDR PatchMAX features from a single video')
 parser.add_argument('--input_file',help='Input video file')
 parser.add_argument('--results_file',help='File where features are stored')
 parser.add_argument('--width', type=int)
@@ -71,7 +71,6 @@ def blockshaped(arr, nrows, ncols):
     """
     Return an array of shape (n, nrows, ncols) where
     n * nrows * ncols = arr.size
-
     If arr is a 2D array, the returned array should look like n subblocks with
     each subblock preserving the "physical" layout of arr.
     """
@@ -144,7 +143,6 @@ def unblockshaped(arr, h, w):
     """
     Return an array of shape (h, w) where
     h * w = arr.size
-
     If arr is of shape (n, nrows, ncols), n sublocks of shape (nrows, ncols),
     then the returned array preserves the "physical" layout of the sublocks.
     """
@@ -154,7 +152,7 @@ def unblockshaped(arr, h, w):
                .reshape(h, w))
 
 
-def hdrchipqa_fromvid(filename,filename_out,width,height,framenos,bit_depth):
+def hdrpatchmax_fromvid(filename,filename_out,width,height,framenos,bit_depth):
     if(os.path.exists(filename)==False):
         print("Input video file does not exist")
         return
@@ -324,11 +322,10 @@ def main():
         multiplier=1.5
     vid_T = int(vid_filesize/(args.height*args.width*multiplier))
     
-    hdrchipqa_fromvid(args.input_file,args.results_file,args.width,args.height,vid_T,args.bit_depth)
+    hdrpatchmax_fromvid(args.input_file,args.results_file,args.width,args.height,vid_T,args.bit_depth)
 
 
 if __name__ == '__main__':
     # print(__doc__)
     main()
     
-
