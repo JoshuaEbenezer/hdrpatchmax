@@ -20,24 +20,6 @@ pip install -r pip_requirements.txt
 
 You should now be good to go!
 
-## Feature extraction
-
-To extract features, run (for eg.)
-```
-
-python3 hdrpatchmax.py --input_file I.yuv --results_file O.z --width 3840 --height 2160 --bit_depth 10 --color_space BT2020
-
-```
-
-## Training 
-
-Run 
-```
-
-python3 randomforest.py --score_file score.csv --feature_folder ./folder --train_and_test
-
-```
-to evaluate. Other options can be seen with the -h option.
 
 ## Testing 
 
@@ -57,3 +39,22 @@ python3 test_single_video.py --feature_file O.z
 
 ```
 
+This will output a single quality score.
+## Feature extraction
+
+To extract features, run (for eg.)
+```
+
+python3 hdrpatchmax.py --input_file I.yuv --results_file O.z --width 3840 --height 2160 --bit_depth 10 --color_space BT2020
+
+```
+
+## Training 
+
+Run 
+```
+
+python3 randomforest.py --score_file score.csv --feature_folder ./folder --train_and_test
+
+```
+to evaluate. Other options can be seen with the -h option.
