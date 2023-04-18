@@ -1,6 +1,6 @@
 # HDRPatchMAX: No-Reference Video Quality Assessment for HDR and SDR using contrast-based segmentation
 
-This repository contains code for HDRPatchMAX.
+This repository contains code for HDRPatchMAX and HDRMAX.
 
 ## Requirements
 
@@ -58,3 +58,18 @@ python3 randomforest.py --score_file score.csv --feature_folder ./folder --train
 
 ```
 to evaluate. Other options can be seen with the -h option.
+
+# HDRMAX
+
+Only feature extraction is supported for HDRMAX.
+
+## Feature extraction
+
+To extract features, run (for eg.)
+```
+
+python3 hdrmax.py --input_file I.yuv --results_file O.z --width 3840 --height 2160 --bit_depth 10 --color_space BT2020
+
+```
+
+HDRMAX features can be combined with features from other VQA algorithms and jointly trained with a Random Forest or SVR to predict VQA for HDR and SDR. HDRMAX features make SDR VQA algorithms robust to bit depth.
