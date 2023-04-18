@@ -2,6 +2,8 @@
 
 This repository contains code for HDRPatchMAX and HDRMAX.
 
+# HDRPatchMAX 
+
 ## Requirements
 
 Create a conda environment from the specification file  hdrpatchmax_spec-file.txt using
