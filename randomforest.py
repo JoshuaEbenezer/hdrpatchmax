@@ -155,7 +155,7 @@ def only_test(r):
     return
 
 if(args.only_train):
-    only_train_grid(0)
+    only_train(0)
 elif(args.only_test):
     only_test(0)
 elif(args.train_and_test):

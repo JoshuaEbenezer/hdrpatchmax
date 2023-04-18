@@ -39,4 +39,21 @@ python3 randomforest.py --score_file score.csv --feature_folder ./folder --train
 ```
 to evaluate. Other options can be seen with the -h option.
 
+## Testing 
+
+First extract features from the video whose quality you want to measure.
+
+To extract features, run (for eg.)
+```
+
+python3 hdrpatchmax.py --input_file I.yuv --results_file O.z --width 3840 --height 2160 --bit_depth 10 --color_space BT2020
+
+```
+
+Then run 
+```
+
+python3 test_single_video.py --feature_file O.z
+
+```
 
