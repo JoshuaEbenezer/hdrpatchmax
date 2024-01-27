@@ -9,6 +9,7 @@ import niqe
 import save_stats
 from numba import jit,prange
 import argparse
+import time
 
 parser = argparse.ArgumentParser(description='Generate HDR PatchMAX features from a single video')
 parser.add_argument('--input_file',help='Input video file')
@@ -166,7 +167,6 @@ def hdrpatchmax_fromvid(filename,filename_out,width,height,framenos,bit_depth):
     a=0.5
     avg_window = t*(1-a*t)*np.exp(-2*a*t)
     avg_window = np.flip(avg_window)
-    cap = cv2.VideoCapture(filename)
 
 #
     theta = np.arange(0,np.pi,np.pi/6)
@@ -185,6 +185,7 @@ def hdrpatchmax_fromvid(filename,filename_out,width,height,framenos,bit_depth):
 
 
 
+    time_diff_list = []
     step = st_time_length
     cy, cx = np.mgrid[step:height-step*4:step*4, step:width-step*4:step*4].reshape(2,-1).astype(int) # these will be the centers of each block
     dcy, dcx = np.mgrid[step:height//2-step*4:step*4, step:width//2-step*4:step*4].reshape(2,-1).astype(int) # these will be the centers of each block
@@ -231,6 +232,7 @@ def hdrpatchmax_fromvid(filename,filename_out,width,height,framenos,bit_depth):
         Y = Y_pq/((2**bit_depth)-1)
         dY = dY_pq/((2**bit_depth)-1)
 #
+        start = time.time()
         gradient_x = cv2.Sobel(Y,ddepth=-1,dx=1,dy=0)
         gradient_y = cv2.Sobel(Y,ddepth=-1,dx=0,dy=1)
         gradient_mag = np.sqrt(gradient_x**2+gradient_y**2)    
@@ -298,6 +300,10 @@ def hdrpatchmax_fromvid(filename,filename_out,width,height,framenos,bit_depth):
             grad_img_buffer = np.zeros((st_time_length,height,width))
             graddown_img_buffer =np.zeros((st_time_length,int(height/2),int(width/2)))
             i=0
+        end = time.time()
+        print(end-start)
+        time_diff_list.append(end-start) 
+    print(np.average(time_diff_list))
     X1 = np.average(spatavg_list,axis=0)
     X2 = np.average(sd_list,axis=0)
     X3 = np.average(X_list,axis=0)
